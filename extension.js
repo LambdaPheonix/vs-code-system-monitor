@@ -425,6 +425,133 @@ class SysMonitorViewProvider {
   }
   .alert.warn { border-color: rgba(184,144,64,0.4);  background: rgba(184,144,64,0.06);  color: var(--vscode-charts-yellow, #b89040); }
   .alert.crit { border-color: rgba(184,85,85,0.4);   background: rgba(184,85,85,0.06);   color: var(--vscode-charts-red,    #b85555); }
+
+  /* ── Tab / live wrapper ── */
+  #tab-live {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-height: 0;
+  }
+
+  /* ── Tab bar ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--vscode-panel-border, rgba(255,255,255,0.07));
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground, rgba(192,200,232,0.45));
+    font-family: var(--vscode-font-family, monospace);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+
+  .tab-btn.active {
+    color: var(--vscode-foreground, #c0c8e0);
+    background: var(--vscode-editor-background, rgba(0,0,0,0.18));
+  }
+
+  /* ── History tab ── */
+  #tab-history { flex: 1; min-height: 0; }
+
+  .h-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .h-range, .h-interval { display: flex; align-items: center; gap: 3px; }
+
+  .h-btn {
+    background: none;
+    border: 1px solid var(--vscode-panel-border, rgba(255,255,255,0.08));
+    border-radius: 2px;
+    color: var(--vscode-descriptionForeground, rgba(192,200,232,0.5));
+    font-family: var(--vscode-font-family, monospace);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+
+  .h-btn.active {
+    color: var(--vscode-foreground, #c0c8e0);
+    border-color: var(--vscode-focusBorder, rgba(150,175,220,0.4));
+    background: var(--vscode-editor-background, rgba(0,0,0,0.18));
+  }
+
+  .spark-section { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+  .spark-row { display: flex; align-items: center; gap: 8px; }
+
+  .spark-label {
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    color: var(--vscode-descriptionForeground, rgba(192,200,232,0.4));
+    width: 70px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+
+  .sparkline { flex: 1; height: 36px; overflow: visible; }
+
+  .spark-ok   { color: var(--vscode-charts-green,  #6aaa6a); }
+  .spark-warn { color: var(--vscode-charts-yellow, #b89040); }
+  .spark-crit { color: var(--vscode-charts-red,    #b85555); }
+
+  .h-stats {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .h-stats th, .h-stats td {
+    text-align: right;
+    padding: 2px 6px;
+    color: var(--vscode-foreground, #c0c8e0);
+  }
+
+  .h-stats th { color: var(--vscode-descriptionForeground, rgba(192,200,232,0.45)); font-weight: normal; }
+  .h-stats td:first-child { text-align: left; }
+
+  .h-section-title {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground, rgba(192,200,232,0.45));
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .h-log {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .h-log-row {
+    display: flex;
+    gap: 8px;
+    color: var(--vscode-descriptionForeground, rgba(192,200,232,0.55));
+  }
+
+  .h-log-row .ts { color: var(--vscode-descriptionForeground, rgba(192,200,232,0.35)); min-width: 45px; }
+  .h-log-row.crit { color: var(--vscode-charts-red, #b85555); }
+  .h-log-row .dur { margin-left: auto; }
 </style>
 </head>
 <body>
@@ -441,39 +568,113 @@ class SysMonitorViewProvider {
     </div>
   </div>
 
-  <!-- Two columns -->
-  <div class="cols">
+  <!-- Tab bar -->
+  <div class="tabs">
+    <button class="tab-btn active" id="btn-live"    onclick="switchTab('live')">LIVE</button>
+    <button class="tab-btn"        id="btn-history" onclick="switchTab('history')">HISTORY</button>
+  </div>
 
-    <!-- CPU panel -->
-    <div class="mpanel">
-      <div class="phead">
-        <span class="ptitle">CPU Usage</span>
-        <span class="psub" id="cpu-freq">--</span>
+  <!-- Live tab -->
+  <div id="tab-live">
+
+    <!-- Two columns -->
+    <div class="cols">
+
+      <!-- CPU panel -->
+      <div class="mpanel">
+        <div class="phead">
+          <span class="ptitle">CPU Usage</span>
+          <span class="psub" id="cpu-freq">--</span>
+        </div>
+        <div class="pval ok" id="cpu-pct">--%</div>
+        <div class="bar-track">
+          <div class="bar-fill ok" id="cpu-bar" style="width:0%"></div>
+        </div>
+        <div class="procs-list" id="cpu-procs"></div>
       </div>
-      <div class="pval ok" id="cpu-pct">--%</div>
-      <div class="bar-track">
-        <div class="bar-fill ok" id="cpu-bar" style="width:0%"></div>
+
+      <!-- RAM panel -->
+      <div class="mpanel">
+        <div class="phead">
+          <span class="ptitle">RAM Usage</span>
+          <span class="psub" id="ram-total">-- GB</span>
+        </div>
+        <div class="pval ok" id="ram-pct">--%</div>
+        <div class="bar-track">
+          <div class="bar-fill ok" id="ram-bar" style="width:0%"></div>
+        </div>
+        <div class="procs-list" id="ram-procs"></div>
       </div>
-      <div class="procs-list" id="cpu-procs"></div>
+
     </div>
 
-    <!-- RAM panel -->
-    <div class="mpanel">
-      <div class="phead">
-        <span class="ptitle">RAM Usage</span>
-        <span class="psub" id="ram-total">-- GB</span>
-      </div>
-      <div class="pval ok" id="ram-pct">--%</div>
-      <div class="bar-track">
-        <div class="bar-fill ok" id="ram-bar" style="width:0%"></div>
-      </div>
-      <div class="procs-list" id="ram-procs"></div>
-    </div>
+    <!-- Alert banner -->
+    <div class="alert" id="alert-banner"></div>
 
   </div>
 
-  <!-- Alert banner -->
-  <div class="alert" id="alert-banner"></div>
+  <!-- History tab -->
+  <div id="tab-history" style="display:none; flex:1; flex-direction:column; gap:8px; overflow-y:auto; min-height:0;">
+
+    <!-- Controls -->
+    <div class="h-controls">
+      <div class="h-range">
+        <button class="h-btn active" id="range-24h" onclick="setRange('24h')">24h</button>
+        <button class="h-btn"        id="range-7d"  onclick="setRange('7d')">7d</button>
+      </div>
+      <div class="h-interval">
+        <span class="ptitle" style="margin-right:4px">LOG</span>
+        <button class="h-btn" id="li-0"   onclick="setLogInterval(0)">Off</button>
+        <button class="h-btn" id="li-30"  onclick="setLogInterval(30)">30s</button>
+        <button class="h-btn active" id="li-60"  onclick="setLogInterval(60)">1m</button>
+        <button class="h-btn" id="li-300" onclick="setLogInterval(300)">5m</button>
+      </div>
+    </div>
+
+    <!-- Sparklines -->
+    <div class="spark-section">
+      <div class="spark-row">
+        <span class="spark-label">CPU FREE %</span>
+        <svg id="spark-cpu" class="sparkline" viewBox="0 0 280 36" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="spark-row">
+        <span class="spark-label">RAM FREE GB</span>
+        <svg id="spark-ram" class="sparkline" viewBox="0 0 280 36" preserveAspectRatio="none"></svg>
+      </div>
+      <div class="spark-row">
+        <span class="spark-label">SWAP FREE</span>
+        <svg id="spark-swap" class="sparkline" viewBox="0 0 280 36" preserveAspectRatio="none"></svg>
+      </div>
+      <div id="h-nodata" style="display:none; font-size:10px; color:var(--vscode-descriptionForeground); text-align:center; padding:12px 0;">
+        no data collected yet
+      </div>
+    </div>
+
+    <!-- Stats table -->
+    <table class="h-stats" id="h-stats">
+      <thead><tr><th></th><th>MIN</th><th>AVG</th><th>MAX</th></tr></thead>
+      <tbody>
+        <tr id="stat-cpu"><td class="ptitle">CPU free</td><td>–</td><td>–</td><td>–</td></tr>
+        <tr id="stat-ram"><td class="ptitle">RAM free</td><td>–</td><td>–</td><td>–</td></tr>
+        <tr id="stat-swap"><td class="ptitle">Swap free</td><td>–</td><td>–</td><td>–</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Session log -->
+    <div class="h-section-title">SESSIONS</div>
+    <div id="h-sessions" class="h-log"></div>
+
+    <!-- Process activity -->
+    <details id="h-procs-details">
+      <summary class="h-section-title" style="cursor:pointer">PROCESS ACTIVITY</summary>
+      <div id="h-procs" class="h-log"></div>
+    </details>
+
+    <!-- Loading state -->
+    <div id="h-loading" style="font-size:10px; color:var(--vscode-descriptionForeground); text-align:center; padding:12px;">
+      loading…
+    </div>
+  </div>
 
 </div>
 
@@ -563,8 +764,183 @@ class SysMonitorViewProvider {
     }
   }
 
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  var vscode = acquireVsCodeApi();
+  var currentRange = '24h';
+
+  function switchTab(name) {
+    document.getElementById('tab-live').style.display    = name === 'live'    ? '' : 'none';
+    document.getElementById('tab-history').style.display = name === 'history' ? 'flex' : 'none';
+    document.getElementById('btn-live').classList.toggle('active',    name === 'live');
+    document.getElementById('btn-history').classList.toggle('active', name === 'history');
+    if (name === 'history') {
+      document.getElementById('h-loading').style.display = 'block';
+      vscode.postMessage({ type: 'loadHistory', range: currentRange });
+    }
+  }
+
+  function setRange(r) {
+    currentRange = r;
+    ['24h','7d'].forEach(function(id) {
+      document.getElementById('range-' + id).classList.toggle('active', id === r);
+    });
+    vscode.postMessage({ type: 'setRange', range: r });
+  }
+
+  function setLogInterval(s) {
+    [0, 30, 60, 300].forEach(function(v) {
+      var el = document.getElementById('li-' + v);
+      if (el) el.classList.toggle('active', v === s);
+    });
+    vscode.postMessage({ type: 'setLogInterval', seconds: s });
+  }
+
+  // ── History rendering ──────────────────────────────────────────────────────
+  function fmtTs(ts) {
+    var d = new Date(ts);
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+
+  function fmtDur(ms) {
+    var h = Math.floor(ms / 3600000);
+    var m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+  }
+
+  function computeStats(records, fn) {
+    if (!records.length) return { min: null, avg: null, max: null };
+    var vals = records.map(fn);
+    var sum  = vals.reduce(function(a, b) { return a + b; }, 0);
+    return { min: Math.min.apply(null, vals), avg: sum / vals.length, max: Math.max.apply(null, vals) };
+  }
+
+  function renderSparkline(svgId, records, valueFn, maxVal, colorClass) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    if (!records.length) { svg.innerHTML = ''; return; }
+    var W = 280, H = 36;
+    var minTs = records[0].ts, maxTs = records[records.length - 1].ts;
+    var tsSpan = maxTs - minTs || 1;
+    var pts = records.map(function(r) {
+      var x = ((r.ts - minTs) / tsSpan) * W;
+      var y = H - Math.min(valueFn(r), maxVal) / maxVal * H;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    var finalVal = valueFn(records[records.length - 1]);
+    var pct = (finalVal / maxVal) * 100;
+    var cls = pct < 15 ? 'spark-crit' : pct < 30 ? 'spark-warn' : 'spark-ok';
+    svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.5" class="' + cls + '"/>';
+  }
+
+  function renderStatsRow(rowId, stats, fmtFn) {
+    var row = document.getElementById(rowId);
+    if (!row || stats.min === null) return;
+    var tds = row.querySelectorAll('td');
+    tds[1].textContent = fmtFn(stats.min);
+    tds[2].textContent = fmtFn(stats.avg);
+    tds[3].textContent = fmtFn(stats.max);
+  }
+
+  function renderSessions(sessions) {
+    var el = document.getElementById('h-sessions');
+    if (!el) return;
+    el.innerHTML = '';
+    sessions.forEach(function(r) {
+      var row = document.createElement('div');
+      row.className = 'h-log-row' + (r.t === 'session_crash' ? ' crit' : '');
+      var label = r.t === 'session_start' ? 'started'
+                : r.t === 'session_end'   ? 'ended'
+                : 'CRASH';
+      var dur = r.duration_ms ? '<span class="dur">' + fmtDur(r.duration_ms) + '</span>' : '';
+      row.innerHTML = '<span class="ts">' + fmtTs(r.ts) + '</span><span>' + label + '</span>' + dur;
+      el.appendChild(row);
+    });
+    if (!sessions.length) el.textContent = 'no sessions in this range';
+  }
+
+  function renderProcessActivity(processes) {
+    var el = document.getElementById('h-procs');
+    if (!el) return;
+
+    // Pair proc_start / proc_end by pid; accumulate by name
+    var starts = {}, byName = {};
+    processes.forEach(function(r) {
+      if (r.t === 'proc_start') {
+        starts[r.pid] = r;
+        if (!byName[r.name]) byName[r.name] = { name: r.name, totalMs: 0, first: r.ts, last: r.ts };
+      } else if (r.t === 'proc_end') {
+        if (!byName[r.name]) byName[r.name] = { name: r.name, totalMs: 0, first: r.ts, last: r.ts };
+        byName[r.name].totalMs += r.duration_ms || 0;
+        byName[r.name].last = Math.max(byName[r.name].last, r.ts);
+        delete starts[r.pid];
+      }
+    });
+    // Still-running: count from first seen to "now"
+    var now = Date.now();
+    Object.keys(starts).forEach(function(pid) {
+      var s = starts[pid];
+      if (!byName[s.name]) byName[s.name] = { name: s.name, totalMs: 0, first: s.ts, last: now };
+      byName[s.name].totalMs += now - s.ts;
+      byName[s.name].last = Math.max(byName[s.name].last, now);
+    });
+
+    var sorted = Object.values(byName).sort(function(a, b) { return b.totalMs - a.totalMs; });
+    el.innerHTML = '';
+    sorted.slice(0, 20).forEach(function(p) {
+      var row = document.createElement('div');
+      row.className = 'h-log-row';
+      row.innerHTML =
+        '<span class="proc-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + p.name + '</span>' +
+        '<span class="dur">' + fmtDur(p.totalMs) + '</span>' +
+        '<span class="ts" style="margin-left:8px">' + fmtTs(p.first) + '–' + fmtTs(p.last) + '</span>';
+      el.appendChild(row);
+    });
+    var details = document.getElementById('h-procs-details');
+    if (details) details.querySelector('summary').textContent = 'PROCESS ACTIVITY (' + sorted.length + ')';
+    if (!sorted.length) el.textContent = 'no process data in this range';
+  }
+
+  // ── Unified message handler ────────────────────────────────────────────────
   window.addEventListener('message', function(e) {
-    if (e.data.type === 'stats') updateAll(e.data.data);
+    if (e.data.type === 'stats') { updateAll(e.data.data); return; }
+
+    if (e.data.type === 'historyData') {
+      var d = e.data;
+      document.getElementById('h-loading').style.display = 'none';
+
+      var hasData = d.records.length > 0;
+      document.getElementById('h-nodata').style.display    = hasData ? 'none'  : 'block';
+      document.getElementById('spark-cpu').style.display   = hasData ? ''      : 'none';
+      document.getElementById('spark-ram').style.display   = hasData ? ''      : 'none';
+      document.getElementById('spark-swap').style.display  = hasData ? ''      : 'none';
+      document.getElementById('h-stats').style.display     = hasData ? ''      : 'none';
+
+      // Sparklines
+      var maxRam  = d.records.length ? Math.max.apply(null, d.records.map(function(r){ return r.ram_total_gb; })) : 16;
+      var maxSwap = d.records.length ? Math.max.apply(null, d.records.map(function(r){ return r.swap_total_gb; })) || 8 : 8;
+      renderSparkline('spark-cpu',  d.records, function(r){ return r.cpu_free; },      100,    'spark-ok');
+      renderSparkline('spark-ram',  d.records, function(r){ return r.ram_free_gb; },   maxRam, 'spark-ok');
+      renderSparkline('spark-swap', d.records, function(r){ return r.swap_free_gb; },  maxSwap,'spark-ok');
+
+      // Stats table
+      var cpuStats  = computeStats(d.records, function(r){ return r.cpu_free; });
+      var ramStats  = computeStats(d.records, function(r){ return r.ram_free_gb; });
+      var swapStats = computeStats(d.records, function(r){ return r.swap_free_gb; });
+      renderStatsRow('stat-cpu',  cpuStats,  function(v){ return v.toFixed(1) + '%'; });
+      renderStatsRow('stat-ram',  ramStats,  function(v){ return v.toFixed(1) + ' GB'; });
+      renderStatsRow('stat-swap', swapStats, function(v){ return v.toFixed(1) + ' GB'; });
+
+      // Session log & process activity
+      renderSessions(d.sessions);
+      renderProcessActivity(d.processes);
+
+      // Reflect active log interval
+      var li = d.logInterval || 0;
+      [0, 30, 60, 300].forEach(function(v) {
+        var el = document.getElementById('li-' + v);
+        if (el) el.classList.toggle('active', v === li);
+      });
+    }
   });
 </script>
 </body>
