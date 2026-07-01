@@ -1,0 +1,33 @@
+{
+  "name": "sys-monitor",
+  "displayName": "SYS_MONITOR",
+  "description": "Real-time CPU & RAM monitor in the VS Code bottom panel",
+  "version": "1.0.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onView:sysMonitor.view"],
+  "main": "./extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "sysMonitorContainer",
+          "title": "SYS_MONITOR",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sysMonitorContainer": [
+        {
+          "type": "webview",
+          "id": "sysMonitor.view",
+          "name": "SYS_MONITOR"
+        }
+      ]
+    }
+  }
+}
