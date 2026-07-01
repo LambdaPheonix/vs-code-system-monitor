@@ -4,6 +4,10 @@ const vscode      = require('vscode');
 const os          = require('os');
 const fs          = require('fs');
 const { execSync } = require('child_process');
+const { spawn }   = require('child_process');
+const path        = require('path');
+
+let collectorProc = null;
 
 const VIEW_TYPE = 'sysMonitor.view';
 
@@ -52,6 +56,19 @@ function getMemCachedBytes() {
     }
 }
 
+function getSwapBytes() {
+    try {
+        const raw   = fs.readFileSync('/proc/meminfo', 'utf8');
+        const total = raw.match(/^SwapTotal:\s+(\d+)/m);
+        const free  = raw.match(/^SwapFree:\s+(\d+)/m);
+        const t = total ? parseInt(total[1], 10) * 1024 : 0;
+        const f = free  ? parseInt(free[1],  10) * 1024 : 0;
+        return { swap_total: t, swap_free: f, swap_used: t - f };
+    } catch (_) {
+        return { swap_total: 0, swap_free: 0, swap_used: 0 };
+    }
+}
+
 function getTopProcesses() {
     try {
         const raw = execSync(
@@ -81,6 +98,8 @@ function collectStats() {
     const freeMem   = os.freemem();
     const usedMem   = totalMem - freeMem;
     const cachedMem = getMemCachedBytes();
+    const { swap_total, swap_free, swap_used } = getSwapBytes();
+    const swap_pct = swap_total > 0 ? (swap_used / swap_total) * 100 : 0;
     const procs     = getTopProcesses();
 
     return {
@@ -93,6 +112,9 @@ function collectStats() {
         ram_used:    usedMem   / 1e9,
         ram_free:    freeMem   / 1e9,
         ram_cached:  cachedMem / 1e9,
+        swap_total_gb: swap_total / 1e9,
+        swap_free_gb:  swap_free  / 1e9,
+        swap_pct:      swap_pct,
         uptime:      os.uptime(),
         hostname:    os.hostname(),
         top_cpu:     procs.slice(0, 5),
@@ -529,8 +551,23 @@ function activate(context) {
             { webviewOptions: { retainContextWhenHidden: true } }
         )
     );
+
+    const collectorPath = path.join(context.extensionPath, 'collector.js');
+    collectorProc = spawn(process.execPath, [collectorPath], {
+        stdio: ['pipe', 'inherit', 'inherit'],
+    });
+    collectorProc.on('error', e => console.error('[SysMonitor] collector error:', e.message));
+    collectorProc.on('exit',  c => console.log('[SysMonitor] collector exited with code', c));
 }
 
-function deactivate() {}
+function deactivate() {
+    if (collectorProc) {
+        try {
+            collectorProc.stdin.write(JSON.stringify({ type: 'stop' }) + '\n');
+            collectorProc.stdin.end();
+        } catch (_) {}
+        collectorProc = null;
+    }
+}
 
 module.exports = { activate, deactivate };
