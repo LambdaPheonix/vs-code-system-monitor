@@ -147,10 +147,10 @@ class SysMonitorViewProvider {
             if (msg.type === 'loadHistory' || msg.type === 'setRange') {
                 const rangeMs = msg.range === '7d' ? 7 * 24 * 3600 * 1000 : 24 * 3600 * 1000;
                 const cutoff  = Date.now() - rangeMs;
-                const logFile = require('path').join(require('os').homedir(), '.sys-monitor-vscode', 'metrics.jsonl');
+                const logFile = path.join(os.homedir(), '.sys-monitor-vscode', 'metrics.jsonl');
                 let records = [], sessions = [], processes = [];
                 try {
-                    const lines = require('fs').readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+                    const lines = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
                     for (const line of lines) {
                         try {
                             const r = JSON.parse(line);
@@ -168,7 +168,7 @@ class SysMonitorViewProvider {
             if (msg.type === 'setLogInterval') {
                 const seconds = msg.seconds;
                 this._context.globalState.update('logInterval', seconds);
-                if (collectorProc && seconds > 0) {
+                if (collectorProc) {
                     try {
                         collectorProc.stdin.write(JSON.stringify({ type: 'setInterval', seconds }) + '\n');
                     } catch (_) {}
@@ -625,8 +625,8 @@ class SysMonitorViewProvider {
       <div class="h-interval">
         <span class="ptitle" style="margin-right:4px">LOG</span>
         <button class="h-btn" id="li-0"   onclick="setLogInterval(0)">Off</button>
-        <button class="h-btn" id="li-30"  onclick="setLogInterval(30)">30s</button>
-        <button class="h-btn active" id="li-60"  onclick="setLogInterval(60)">1m</button>
+        <button class="h-btn active" id="li-30"  onclick="setLogInterval(30)">30s</button>
+        <button class="h-btn" id="li-60"  onclick="setLogInterval(60)">1m</button>
         <button class="h-btn" id="li-300" onclick="setLogInterval(300)">5m</button>
       </div>
     </div>
@@ -681,6 +681,10 @@ class SysMonitorViewProvider {
 <script>
   var WARN = 70, CRIT = 90;
 
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   function level(p) { return p >= CRIT ? 'crit' : p >= WARN ? 'warn' : 'ok'; }
 
   function fmt(gb) {
@@ -708,7 +712,7 @@ class SysMonitorViewProvider {
       row.className = 'proc-row';
       row.style.setProperty('--fill', (valueFn(p) / maxVal * 100).toFixed(1));
       row.innerHTML =
-        '<span class="proc-name">' + p.name + '</span>' +
+        '<span class="proc-name">' + escHtml(p.name) + '</span>' +
         '<span class="proc-metric">' + labelFn(p) + '</span>';
       el.appendChild(row);
     });
@@ -826,10 +830,12 @@ class SysMonitorViewProvider {
       var y = H - Math.min(valueFn(r), maxVal) / maxVal * H;
       return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
-    var finalVal = valueFn(records[records.length - 1]);
+    var last = records[records.length - 1];
+    var finalVal = valueFn(last);
     var pct = (finalVal / maxVal) * 100;
     var cls = pct < 15 ? 'spark-crit' : pct < 30 ? 'spark-warn' : 'spark-ok';
-    svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.5" class="' + cls + '"/>';
+    var titleText = escHtml(finalVal.toFixed(1) + ' @ ' + fmtTs(last.ts));
+    svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.5" class="' + cls + '"><title>' + titleText + '</title></polyline>';
   }
 
   function renderStatsRow(rowId, stats, fmtFn) {
@@ -890,7 +896,7 @@ class SysMonitorViewProvider {
       var row = document.createElement('div');
       row.className = 'h-log-row';
       row.innerHTML =
-        '<span class="proc-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + p.name + '</span>' +
+        '<span class="proc-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(p.name) + '</span>' +
         '<span class="dur">' + fmtDur(p.totalMs) + '</span>' +
         '<span class="ts" style="margin-left:8px">' + fmtTs(p.first) + '–' + fmtTs(p.last) + '</span>';
       el.appendChild(row);
@@ -969,6 +975,11 @@ function activate(context) {
     });
     collectorProc.on('error', e => console.error('[SysMonitor] collector error:', e.message));
     collectorProc.on('exit',  c => console.log('[SysMonitor] collector exited with code', c));
+
+    const storedInterval = context.globalState.get('logInterval', 30);
+    if (storedInterval > 0) {
+        collectorProc.stdin.write(JSON.stringify({ type: 'setInterval', seconds: storedInterval }) + '\n');
+    }
 }
 
 function deactivate() {

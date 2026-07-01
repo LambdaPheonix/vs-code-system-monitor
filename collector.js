@@ -185,9 +185,13 @@ rl.on('line', line => {
     try {
         const cmd = JSON.parse(line);
         if (cmd.type === 'stop') shutdown('session_end');
-        if (cmd.type === 'setInterval' && Number.isFinite(cmd.seconds) && cmd.seconds > 0) {
+        if (cmd.type === 'setInterval' && Number.isFinite(cmd.seconds) && cmd.seconds >= 0) {
             pollInterval = cmd.seconds;
-            startTimer();
+            if (cmd.seconds === 0) {
+                if (timer) { clearInterval(timer); timer = null; }
+            } else {
+                startTimer();
+            }
         }
     } catch (_) {}
 });
