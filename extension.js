@@ -125,8 +125,9 @@ function collectStats() {
 // ─── Webview Provider ────────────────────────────────────────────────────────
 
 class SysMonitorViewProvider {
-    constructor(extensionUri) {
+    constructor(extensionUri, context) {
         this._extensionUri = extensionUri;
+        this._context      = context;
         this._view         = undefined;
         this._interval     = undefined;
     }
@@ -140,6 +141,40 @@ class SysMonitorViewProvider {
         // Short delay so the webview JS is ready before first push
         setTimeout(() => this._push(), 700);
         this._startPolling();
+
+        // ── History tab message handlers ──────────────────────────────────────
+        webviewView.webview.onDidReceiveMessage(msg => {
+            if (msg.type === 'loadHistory' || msg.type === 'setRange') {
+                const rangeMs = msg.range === '7d' ? 7 * 24 * 3600 * 1000 : 24 * 3600 * 1000;
+                const cutoff  = Date.now() - rangeMs;
+                const logFile = require('path').join(require('os').homedir(), '.sys-monitor-vscode', 'metrics.jsonl');
+                let records = [], sessions = [], processes = [];
+                try {
+                    const lines = require('fs').readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+                    for (const line of lines) {
+                        try {
+                            const r = JSON.parse(line);
+                            if (r.ts < cutoff) continue;
+                            if (r.t === 'metrics')                           records.push(r);
+                            else if (r.t.startsWith('session_'))             sessions.push(r);
+                            else if (r.t === 'proc_start' || r.t === 'proc_end') processes.push(r);
+                        } catch (_) {}
+                    }
+                } catch (_) {}
+                const logInterval = this._context.globalState.get('logInterval', 30);
+                webviewView.webview.postMessage({ type: 'historyData', records, sessions, processes, logInterval });
+            }
+
+            if (msg.type === 'setLogInterval') {
+                const seconds = msg.seconds;
+                this._context.globalState.update('logInterval', seconds);
+                if (collectorProc && seconds > 0) {
+                    try {
+                        collectorProc.stdin.write(JSON.stringify({ type: 'setInterval', seconds }) + '\n');
+                    } catch (_) {}
+                }
+            }
+        });
 
         webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
@@ -542,7 +577,7 @@ class SysMonitorViewProvider {
 function activate(context) {
     primeCpu(); // prime so first real poll has a valid diff to compare
 
-    const provider = new SysMonitorViewProvider(context.extensionUri);
+    const provider = new SysMonitorViewProvider(context.extensionUri, context);
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
