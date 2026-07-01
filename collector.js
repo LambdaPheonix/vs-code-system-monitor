@@ -124,11 +124,58 @@ function shutdown(type) {
     process.exit(0);
 }
 
-// ─── Process lifecycle tracking (stub — filled in Task 2) ─────────────────────
+// ─── Process lifecycle tracking ───────────────────────────────────────────────
 
-function trackProcesses() {}
+// Map of pid (string) → { name, startTs }
+const runningProcs = new Map();
 
-function seedInitialProcesses() {}
+function getRunningPids() {
+    try {
+        const { execSync } = require('child_process');
+        const raw = execSync('ps -eo pid,comm --no-headers 2>/dev/null', {
+            encoding: 'utf8',
+            timeout: 1500,
+        });
+        return raw.trim().split('\n').map(line => {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 2) return null;
+            return { pid: parts[0], name: parts.slice(1).join(' ').substring(0, 32) };
+        }).filter(Boolean);
+    } catch (_) {
+        return [];
+    }
+}
+
+function trackProcesses() {
+    const now     = Date.now();
+    const current = getRunningPids();
+    const currentPids = new Set(current.map(p => p.pid));
+
+    // New processes
+    for (const { pid, name } of current) {
+        if (!runningProcs.has(pid)) {
+            runningProcs.set(pid, { name, startTs: now });
+            appendRecord({ t: 'proc_start', ts: now, pid: +pid, name });
+        }
+    }
+
+    // Ended processes
+    for (const [pid, { name, startTs }] of runningProcs) {
+        if (!currentPids.has(pid)) {
+            appendRecord({ t: 'proc_end', ts: now, pid: +pid, name, duration_ms: now - startTs });
+            runningProcs.delete(pid);
+        }
+    }
+}
+
+// Seed runningProcs from current state at startup so they appear as proc_start at session start
+function seedInitialProcesses() {
+    const now  = Date.now();
+    for (const { pid, name } of getRunningPids()) {
+        runningProcs.set(pid, { name, startTs: now });
+        appendRecord({ t: 'proc_start', ts: now, pid: +pid, name });
+    }
+}
 
 // ─── Stdin command handler ────────────────────────────────────────────────────
 
