@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Packaged extension output
+*.vsix
+
+# Build output
+dist/
+out/
+
+# VS Code local settings
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/extensions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+npm-debug.log*
+
+# Environment
+.env
+
+# Superpowers dev tooling
+.superpowers/
